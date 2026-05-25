@@ -5,7 +5,7 @@
 
 hydra:
   searchpath:
-    - file:../../verl/verl/trainer/config  # Hydra search path pointing to verl's default config directory
+    - pkg://verl.trainer.config  # verl's default config package (works regardless of cwd)
 
 defaults:
   - ppo_trainer    # Base PPO trainer config (actor/critic/rollout/algorithm defaults)

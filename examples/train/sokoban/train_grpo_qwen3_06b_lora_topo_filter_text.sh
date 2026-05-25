@@ -2,26 +2,41 @@
 # Minimum example: single-GPU LoRA GRPO training with Qwen3-0.6B on sokoban (text mode)
 # Note: LoRA currently requires vllm backend (sglang not yet supported)
 
+set -euo pipefail
 set -x
 
 PROJECT_NAME="vagen_experiments"
 EXPERIMENT_NAME="sokoban_grpo_qwen3_06b_topp_filter_lora_text"
 
-BASEDIR=$(pwd)
-SCRIPTDIR=$(dirname "$0")
+SCRIPTDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASEDIR="${SCRIPTDIR}"
+VAGEN_ROOT="$(cd "${SCRIPTDIR}/../../.." && pwd)"
+
+# Make `python -m vagen...` and `import verl...` work when running from this examples directory.
+export PYTHONPATH="${VAGEN_ROOT}:${VAGEN_ROOT}/verl:${PYTHONPATH:-}"
+
 EXPERIMENT_DIR=${BASEDIR}/exps/${PROJECT_NAME}/${EXPERIMENT_NAME}
 SAVE_CHECKPOINT_DIR=${EXPERIMENT_DIR}/verl_checkpoints
 DATASET_TRAIN=${SCRIPTDIR}/train_sokoban_free_wm_text.yaml
 DATASET_VAL=${SCRIPTDIR}/val_sokoban_free_wm_text.yaml
-agent_loop_config_path=${BASEDIR}/vagen/configs/agent.yaml
+CONFIG_DIR="${VAGEN_ROOT}/vagen/configs"
+agent_loop_config_path="${CONFIG_DIR}/agent.yaml"
+CUSTOM_DATASET_CLS_PATH="${VAGEN_ROOT}/vagen/gym_agent_dataset.py"
 REF_MODEL_PATH=Qwen/Qwen3-0.6B
 mkdir -p ${EXPERIMENT_DIR}
 
+if ! python3 -c "import hydra" >/dev/null 2>&1; then
+    echo "ERROR: python3 cannot import hydra. Did you forget to activate the vagen environment (e.g. \`conda activate vagen\`)?" >&2
+    echo "       Current python3: $(command -v python3)" >&2
+    exit 1
+fi
+
 PYTHONUNBUFFERED=1 python3 -m vagen.main_ppo \
-    --config-path=${BASEDIR}/vagen/configs \
+    --config-path="${CONFIG_DIR}" \
     --config-name='vagen_multiturn' \
     data.train_files=${DATASET_TRAIN} \
     data.val_files=${DATASET_VAL} \
+    data.custom_cls.path="${CUSTOM_DATASET_CLS_PATH}" \
     data.train_batch_size=16 \
     data.max_prompt_length=1000 \
     data.max_response_length=4000 \
@@ -43,7 +58,7 @@ PYTHONUNBUFFERED=1 python3 -m vagen.main_ppo \
     actor_rollout_ref.actor.ulysses_sequence_parallel_size=1 \
     actor_rollout_ref.actor.fsdp_config.param_offload=True \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
-    actor_rollout_ref.actor.checkpoint.save_contents=['model','hf_model','optimizer','extra'] \
+    'actor_rollout_ref.actor.checkpoint.save_contents=[model,hf_model,optimizer,extra]' \
     actor_rollout_ref.rollout.name=vllm \
     actor_rollout_ref.rollout.mode=async \
     actor_rollout_ref.rollout.load_format=safetensors \
@@ -57,12 +72,12 @@ PYTHONUNBUFFERED=1 python3 -m vagen.main_ppo \
     actor_rollout_ref.rollout.free_cache_engine=True \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1 \
     actor_rollout_ref.rollout.multi_turn.enable=True \
-    actor_rollout_ref.rollout.agent.agent_loop_config_path=$agent_loop_config_path \
+    actor_rollout_ref.rollout.agent.agent_loop_config_path="${agent_loop_config_path}" \
     actor_rollout_ref.rollout.disable_log_stats=False \
     actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=1 \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
     trainer.critic_warmup=0 \
-    trainer.logger=['console','wandb'] \
+    trainer.logger=['console'] \
     trainer.val_before_train=True \
     trainer.n_gpus_per_node=1 \
     trainer.nnodes=1 \
@@ -77,5 +92,5 @@ PYTHONUNBUFFERED=1 python3 -m vagen.main_ppo \
     trainer.max_actor_ckpt_to_keep=1 \
     trainer.max_critic_ckpt_to_keep=1 \
     filter.enable=True \
-    trainer.total_training_steps=401 2>&1 | \
-    tee ${EXPERIMENT_DIR}/${PROJECT_NAME}_${EXPERIMENT_NAME}.log >(tee ${BASEDIR}/${PROJECT_NAME}_${EXPERIMENT_NAME}.log >/dev/null)
+    trainer.total_training_steps=401 \
+    |& tee "${EXPERIMENT_DIR}/${PROJECT_NAME}_${EXPERIMENT_NAME}.log" "${BASEDIR}/${PROJECT_NAME}_${EXPERIMENT_NAME}.log"

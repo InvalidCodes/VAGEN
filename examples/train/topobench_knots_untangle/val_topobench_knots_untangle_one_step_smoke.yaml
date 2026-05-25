@@ -1,0 +1,16 @@
+envs:
+  - name: TopobenchKnotsUntangle
+    n_envs: 1
+    data_source: topobench_knots_untangle_smoke
+    seed: [101, 101, 1]
+    max_turns: 1
+    response_length_per_turn: 64
+    config:
+      task_name: knots_untangle
+      difficulty: easy
+      prompt_format: no_think
+      max_steps: 1
+      headless: true
+      animate: false
+      success_reward: 1.0
+      fail_reward: 0.0
