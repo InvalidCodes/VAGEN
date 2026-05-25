@@ -50,6 +50,11 @@ export TOKENIZERS_PARALLELISM=false
 export NCCL_DEBUG=WARN
 export SGLANG_LOG_LEVEL=info
 
+# HuggingFace mirror for boxes (e.g. A100) without direct huggingface.co access.
+# Override by exporting HF_ENDPOINT=https://huggingface.co before invoking this script.
+export HF_ENDPOINT="${HF_ENDPOINT:-https://hf-mirror.com}"
+export HF_HUB_ENABLE_HF_TRANSFER="${HF_HUB_ENABLE_HF_TRANSFER:-1}"
+
 if ! python3 -c "import hydra" >/dev/null 2>&1; then
     echo "ERROR: python3 cannot import hydra. Activate your vagen env first." >&2
     exit 1
